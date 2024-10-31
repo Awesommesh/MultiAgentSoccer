@@ -502,7 +502,7 @@
 		</data>
 		<key>Resources/Data/boot.config</key>
 		<data>
-		RwJF36mczsYiaygIL5xQ8ULqmx0=
+		JzDadlBCol64Ryhy4a/AiH1VMG8=
 		</data>
 		<key>Resources/Data/globalgamemanagers</key>
 		<data>
@@ -518,7 +518,7 @@
 		</data>
 		<key>Resources/Data/level0</key>
 		<data>
-		+f49SpkfNvxlWb8HURfXRiTQBoU=
+		IHn+etTZp68kYYC5kT8t2TmaHHY=
 		</data>
 		<key>Resources/Data/resources.assets</key>
 		<data>
@@ -582,6 +582,13 @@
 			</data>
 			<key>requirement</key>
 			<string>cdhash H"e82bc9a0dc89e46efd119162db81f44afa2041b0" or cdhash H"95f92ecb104c308a1780d4d85a7dc5885bcd0ab9"</string>
+		</dict>
+		<key>ML-Agents/Timers/Soccer3_timers.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			YmsUnChgO1on7DEADOUs3Vbbxyafy4Ytrz4q9CNJxeg=
+			</data>
 		</dict>
 		<key>MonoBleedingEdge/etc/mono/2.0/Browsers/Compat.browser</key>
 		<dict>
@@ -1599,7 +1606,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			j/DVXPf6bDZ5h2lgJ/fj0J2044oWHYX7XOqKnL0186Q=
+			nrEBl7Ai6cQkfsZbSmdoC4mBTpR6QI3tKldM59Q6Q0M=
 			</data>
 		</dict>
 		<key>Resources/Data/globalgamemanagers</key>
@@ -1627,7 +1634,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			C110r2gF9DAGvzHDRjZ4Zd2W5vCdPy8lzAs1o8PPfIc=
+			d1eiEiFeZ9xsnKb5lRUlmUX7oFmk5Byl4SXRC+JiF9k=
 			</data>
 		</dict>
 		<key>Resources/Data/resources.assets</key>

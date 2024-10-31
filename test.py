@@ -1,6 +1,17 @@
-import soccer_fours
+import soccer_fours, soccer_threes, soccer_twos
 
-env = soccer_fours.make(time_scale=10, render=True)
+num_per_team = 2
+time_scale = 10
+render = True
+
+if num_per_team == 4:
+    env = soccer_fours.make(time_scale=time_scale, render=render)
+elif num_per_team == 3:
+    env = soccer_threes.make(time_scale=time_scale, render=render)
+elif num_per_team == 2:
+    env = soccer_twos.make(time_scale=time_scale, render=render)
+else:
+    print(f"GOT UNEXPECTED NUMBER OF PLAYERS PER TEAM! {num_per_team}")
 print("Observation Space: ", env.observation_space.shape)
 print("Action Space: ", env.action_space.shape)
 
@@ -9,19 +20,12 @@ team1_reward = 0
 while True:
     obs, reward, done, info = env.step(
         {
-            0: env.action_space.sample(),
-            1: env.action_space.sample(),
-            2: env.action_space.sample(),
-            3: env.action_space.sample(),
-            4: env.action_space.sample(),
-            5: env.action_space.sample(),
-            6: env.action_space.sample(),
-            7: env.action_space.sample(),
+            i: env.action_space.sample() for i in range(2*num_per_team)
         }
     )
-
-    team0_reward += reward[0] + reward[1] + reward[2] + reward[3]
-    team1_reward += reward[4] + reward[5] + reward[6] + reward[7]
+    for i in range(num_per_team):
+        team0_reward += reward[i]
+        team1_reward += reward[num_per_team+i]
     if done["__all__"]:
         print("Total Reward: ", team0_reward, " x ", team1_reward)
         team0_reward = 0
