@@ -5,6 +5,7 @@ __pycache__/
 
 # Ray results
 ray_results/
+UnityEnvBuilds/*.json
 *.json
 *.DS_Store
 
