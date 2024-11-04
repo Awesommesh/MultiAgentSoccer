@@ -17,6 +17,7 @@ print("Action Space: ", env.action_space.shape)
 
 team0_reward = 0
 team1_reward = 0
+env.reset()
 while True:
     obs, reward, done, info = env.step(
         {
