@@ -11,13 +11,36 @@ from utils import create_rllib_env
 
 
 class SelfPlayUpdateCallback(DefaultCallbacks):
+    def on_algorithm_init(self, **info):
+        #print("woke", info["algorithm"].get_weights(["opponent_3"])["opponent_3"])
+        print("---- Setting same opponents!!! ----")
+        trainer = info["algorithm"]
+        trainer.set_weights(
+            {
+                "opponent_3": trainer.get_weights(["opponent_1"])["opponent_1"],
+                "opponent_2": trainer.get_weights(["opponent_1"])["opponent_1"],
+            }
+        )
+
     def on_train_result(self, **info):
         """
         Update multiagent oponent weights when reward is high enough
         """
-        if info["result"]["env_runners"]["episode_reward_mean"] > 0.1:
+        main_rew = info["result"]["env_runners"]["hist_stats"].pop("policy_default_reward")
+        won = 0
+        count = 0
+        for i in range(len(main_rew)-1, -1, -2):
+            count += 1
+            if main_rew[i] > 0:
+                won += 1
+            if count == 100:
+                break
+        win_rate = won / len(main_rew)
+        print("win rate:", win_rate)
+        info["result"]["env_runners"]["win_rate"] = win_rate
+        if win_rate > 0.7:
             print("---- Updating opponents!!! ----")
-            trainer = info["trainer"]
+            trainer = info["algorithm"]
             trainer.set_weights(
                 {
                     "opponent_3": trainer.get_weights(["opponent_2"])["opponent_2"],
@@ -25,16 +48,6 @@ class SelfPlayUpdateCallback(DefaultCallbacks):
                     "opponent_1": trainer.get_weights(["default"])["default"],
                 }
             )
-
-def policy_mapping_fn(agent_id, *args, **kwargs):
-    if agent_id == 0:
-        return "default"  # Choose 01 policy for agent_01
-    else:
-        return np.random.choice(
-            ["default", "opponent_1", "opponent_2", "opponent_3"],
-            size=1,
-            p=[0.50, 0.25, 0.125, 0.125],
-        )[0]
 
 def train_ppo(args):
     #Setup environment
@@ -59,18 +72,19 @@ def train_ppo(args):
         "time_scale": time_scale,
         "num_per_team": num_per_team,
         "num_workers": num_workers,
-        "num_envs_per_worker": num_envs_per_worker
+        "num_envs_per_worker": num_envs_per_worker,
+        "render": False,
     }
 
-    opponent_policies = ["team_2_policy"]
     def policy_mapping_fn(agent_id, *args, **kwargs):
-        if agent_id == 0:
+        #ep_obj = args[0] https://github.com/ray-project/ray/blob/master/rllib/evaluation/episode_v2.py
+        if agent_id < num_per_team:
             return "default"  # Choose 01 policy for agent_01
         else:
             return np.random.choice(
-                ["default", "opponent_1", "opponent_2", "opponent_3"],
+                ["opponent_1", "opponent_2", "opponent_3"],
                 size=1,
-                p=[0.50, 0.25, 0.125, 0.125],
+                p=[0.5, 0.25, 0.25],
             )[0]
 
 
@@ -99,14 +113,13 @@ def train_ppo(args):
             "env": "Soccer",
             "env_config": env_config,
             "model": {
-                "vf_share_layers": True,
-                "fcnet_hiddens": [512, 512, 512],
+                "vf_share_layers": False,
+                "fcnet_hiddens": [512, 512],
                 "fcnet_activation": "relu",
                 "use_lstm": args.use_lstm,
                 "max_seq_len": args.max_seq_len,
                 "lstm_cell_size": args.lstm_cell_size,  # Size of the LSTM cell
                 "lstm_use_prev_action": False if args.lstm_dont_use_prev_action else True,  # Whether to use previous actions and rewards as inputs
-                "vf_share_layers": True,
             },
             "gamma": args.gamma,
             "lr": args.lr,
@@ -117,42 +130,22 @@ def train_ppo(args):
             "minibatch_size": args.sgd_minibatch_size,
             "num_epochs": args.num_sgd_iter,
             "train_batch_size": train_bs,
-            "rollout_fragment_length": "auto",
             "batch_mode": "complete_episodes",
         },
-        stop={"timesteps_total": 15000000, "time_total_s": 7200,},  # 2h
-        checkpoint_freq=100,
+        stop={"timesteps_total": 30000000, "time_total_s": 43200,},  # 12h
+        checkpoint_freq=20,
         checkpoint_at_end=True,
-        storage_path="~/repositories/MultiAgentSoccer/ray_results",
+        keep_checkpoints_num=100,
+        storage_path="~/repositories/MultiAgentSoccer/ray_results/",
         # restore="./ray_results/PPO_selfplay_twos_2/PPO_Soccer_a8b44_00000_0_2021-09-18_11-13-55/checkpoint_000600/checkpoint-600",
     )
-    '''
-    gamma=args.gamma,
-                lr=args.lr,
-                clip_param=args.clip_param,
-                entropy_coeff=args.entropy_coeff,
-                vf_loss_coeff=args.vf_coeff,
-                lambda_=args.lambda_,
-                minibatch_size=args.sgd_minibatch_size,
-                num_epochs=args.num_sgd_iter,
-                train_batch_size=train_bs,
-                model= {
-                    # By default, the MODEL_DEFAULTS dict above will be used.
-
-                    # Change individual keys in that dict by overriding them, e.g.
-                    "use_lstm": True,
-                    "max_seq_len": args.max_seq_len,
-                    "lstm_cell_size": args.lstm_cell_size,  # Size of the LSTM cell
-                    "lstm_use_prev_action": False if args.lstm_dont_use_prev_action else True,  # Whether to use previous actions and rewards as inputs
-                    "vf_share_layers": True,
-                },'''
     
     # Gets best trial based on max accuracy across all training iterations.
-    best_trial = ppo.get_best_trial("episode_reward_mean", mode="max")
+    best_trial = ppo.get_best_trial("env_runners/episode_reward_mean", mode="max")
     print(best_trial)
     # Gets best checkpoint for trial based on accuracy.
     best_checkpoint = ppo.get_best_checkpoint(
-        trial=best_trial, metric="episode_reward_mean", mode="max"
+        trial=best_trial, metric="env_runners/episode_reward_mean", mode="max"
     )
     print(best_checkpoint)
     print("Done training")
@@ -167,18 +160,18 @@ def main():
     parser.add_argument('--verbose', action='store_true', help='Enable verbose mode')
     parser.add_argument('-n', '--num_agents_per_team', type=int, choices=[2, 3, 4], 
         default=2, help='number of players per team in the soccer environmnet (must be either 2, 3, or 4)')
-    parser.add_argument('--timescale', type=int, default=10, help='timescale for environment')
+    parser.add_argument('--timescale', type=int, default=20, help='timescale for environment')
     parser.add_argument('--train_bs', type=int, default=8000, help='batch size for training PPO')
     parser.add_argument('--num_workers', type=int, default=8, help='number of workers to instantiate for efficient sampling and rollouts')
     parser.add_argument('--num_envs_per_worker', type=int, default=1, help='number of envs to per worked instantiated for efficient sampling and rollouts')
     parser.add_argument('--num_epochs', type=int, default=200, help='number of PPO training rounds')
     parser.add_argument('--gamma', type=float, default=0.99, help='gamma discount factor')
     parser.add_argument('--lr', type=float, default=3e-4, help='learning rate')
-    parser.add_argument('--clip_param', type=float, default=0.2, help='PPO clip parameter')
+    parser.add_argument('--clip_param', type=float, default=0.3, help='PPO clip parameter')
     parser.add_argument('--entropy_coeff', type=float, default=0.01, help='entropy_coefficient')
     parser.add_argument('--vf_coeff', type=float, default=1.0, help='vf coefficient')
     parser.add_argument('--lambda_', type=float, default=0.95, help='lambda')
-    parser.add_argument('--sgd_minibatch_size', type=int, default=256, help='sgd minibatch size')
+    parser.add_argument('--sgd_minibatch_size', type=int, default=512, help='sgd minibatch size')
     parser.add_argument('--num_sgd_iter', type=int, default=30, help='number of sgd iterations')
     parser.add_argument('--use_lstm', action='store_true', help='Use LSTM policy model')
     parser.add_argument('--max_seq_len', type=int, default=20, help='LSTM max sequence length')

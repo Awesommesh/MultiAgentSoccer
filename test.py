@@ -14,14 +14,13 @@ else:
     print(f"GOT UNEXPECTED NUMBER OF PLAYERS PER TEAM! {num_per_team}")
 print("Observation Space: ", env.observation_space.shape)
 print("Action Space: ", env.action_space.shape)
-
 team0_reward = 0
 team1_reward = 0
 env.reset()
 while True:
     obs, reward, done, info = env.step(
         {
-            i: env.action_space.sample() for i in range(2*num_per_team)
+            i: env.action_space.sample() if i < 2 else [0, 0, 0] for i in range(2*num_per_team)
         }
     )
     for i in range(num_per_team):

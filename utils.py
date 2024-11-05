@@ -27,7 +27,8 @@ class MultiAgentSoccerEnv(MultiAgentEnv):
         self.action_space = gym.spaces.MultiDiscrete([3, 3, 3])
 
     def reset(self, seed=0, options=None):
-        return self.env.reset(), {}
+        obs = self.env.reset()
+        return obs, {}
 
     def step(self, action_dict):
         obs, reward, done, info = self.env.step(action_dict)
