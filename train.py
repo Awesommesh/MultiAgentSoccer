@@ -5,49 +5,12 @@ import gymnasium as gym
 import numpy as np
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from utils import create_rllib_env
+from ray.tune.registry import get_trainable_cls
+import os
+import pickle
 
 # Model config settings: https://docs.ray.io/en/latest/rllib/rllib-models.html#rnns
 # Starter ray code reference: https://github.com/bryanoliveira/soccer-twos-starter/tree/main
-
-
-class SelfPlayUpdateCallback(DefaultCallbacks):
-    def on_algorithm_init(self, **info):
-        #print("woke", info["algorithm"].get_weights(["opponent_3"])["opponent_3"])
-        print("---- Setting same opponents!!! ----")
-        trainer = info["algorithm"]
-        trainer.set_weights(
-            {
-                "opponent_3": trainer.get_weights(["opponent_1"])["opponent_1"],
-                "opponent_2": trainer.get_weights(["opponent_1"])["opponent_1"],
-            }
-        )
-
-    def on_train_result(self, **info):
-        """
-        Update multiagent oponent weights when reward is high enough
-        """
-        main_rew = info["result"]["env_runners"]["hist_stats"].pop("policy_default_reward")
-        won = 0
-        count = 0
-        for i in range(len(main_rew)-1, -1, -2):
-            count += 1
-            if main_rew[i] > 0:
-                won += 1
-            if count == 100:
-                break
-        win_rate = won / len(main_rew)
-        print("win rate:", win_rate)
-        info["result"]["env_runners"]["win_rate"] = win_rate
-        if win_rate > 0.7:
-            print("---- Updating opponents!!! ----")
-            trainer = info["algorithm"]
-            trainer.set_weights(
-                {
-                    "opponent_3": trainer.get_weights(["opponent_2"])["opponent_2"],
-                    "opponent_2": trainer.get_weights(["opponent_1"])["opponent_1"],
-                    "opponent_1": trainer.get_weights(["default"])["default"],
-                }
-            )
 
 def train_ppo(args):
     #Setup environment
@@ -57,14 +20,92 @@ def train_ppo(args):
     num_workers = args.num_workers
     num_envs_per_worker = args.num_envs_per_worker
     num_epochs = args.num_epochs
-
-    #hardcoded all envs observation and action space
-    observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(336,), dtype=np.float32)
-    action_space = gym.spaces.MultiDiscrete([3, 3, 3])
+    default_policy_weights = None
 
     # Initialize Ray
     ray.init()
     print("initialized ray")
+
+    if args.ckpt is not None:
+        # Load the checkpoint to access the 'default' policy weights
+        checkpoint_path = ckpt_p = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            args.ckpt,
+        ) 
+        param_pkl = os.path.join(checkpoint_path, "algorithm_state.pkl")
+        print(param_pkl)
+        with open(param_pkl, "rb") as f:
+            config = pickle.load(f)
+
+        print("Loaded algorithm state!")
+        # no need for parallelism on evaluation
+        config["num_workers"] = 0
+        config["num_gpus"] = 0
+        observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(336,), dtype=np.float32)
+        action_space = gym.spaces.MultiDiscrete([3, 3, 3])
+        config["observation_space"] = observation_space
+        config["action_space"] = action_space
+        # create a dummy env since it's required but we only care about the policy
+        tune.registry.register_env("Soccer", create_rllib_env)
+        print(config.keys(), config)
+        cls = get_trainable_cls("PPO")
+        print(cls)
+        agent = cls(config=config)
+        # load state from checkpoint
+        agent.restore(checkpoint_path)
+        # get policy for evaluation
+        policy = agent.get_policy("default")
+        default_policy_weights = policy.get_weights()
+
+    class SelfPlayUpdateCallback(DefaultCallbacks):
+        def on_algorithm_init(self, **info):
+            print("---- Setting same opponents!!! ----")
+            trainer = info["algorithm"]
+            if args.ckpt:
+                print("---- Setting from ckpt opponents!!! ----")
+                trainer.set_weights(
+                    {
+                        "default": default_policy_weights
+                    }
+                )
+            else:
+                trainer.set_weights(
+                    {
+                        "opponent_3": trainer.get_policy("opponent_1").get_weights(),
+                        "opponent_2": trainer.get_policy("opponent_1").get_weights(),
+                    }
+                )
+
+        def on_train_result(self, **info):
+            """
+            Update multiagent oponent weights when reward is high enough
+            """
+            main_rew = info["result"]["env_runners"]["hist_stats"].pop("policy_default_reward")
+            won = 0
+            total = 0
+            for i in range(len(main_rew)-1, -1, -num_per_team):
+                total += 1
+                if main_rew[i] > 0:
+                    won += 1
+            win_rate = won / total
+            print("win rate:", win_rate)
+            info["result"]["env_runners"]["win_rate"] = win_rate
+            trainer = info["algorithm"]
+            if win_rate > 0.95:
+                print("---- Updating opponents!!! ----")
+                
+                trainer.set_weights(
+                    {
+                        "opponent_3": trainer.get_policy("opponent_2").get_weights(),
+                        "opponent_2": trainer.get_policy("opponent_1").get_weights(),
+                        "opponent_1": trainer.get_policy("default").get_weights(),
+                    }
+                )
+
+
+    #hardcoded all envs observation and action space
+    observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(336,), dtype=np.float32)
+    action_space = gym.spaces.MultiDiscrete([3, 3, 3])
 
     tune.registry.register_env("Soccer", create_rllib_env)
 
@@ -75,17 +116,29 @@ def train_ppo(args):
         "num_envs_per_worker": num_envs_per_worker,
         "render": False,
     }
-
+    team_policy_map = {"blue": "default"}
     def policy_mapping_fn(agent_id, *args, **kwargs):
         #ep_obj = args[0] https://github.com/ray-project/ray/blob/master/rllib/evaluation/episode_v2.py
-        if agent_id < num_per_team:
+        '''if agent_id < num_per_team:
             return "default"  # Choose 01 policy for agent_01
         else:
             return np.random.choice(
                 ["opponent_1", "opponent_2", "opponent_3"],
                 size=1,
                 p=[0.5, 0.25, 0.25],
+            )[0]'''
+        team_id = "blue" if agent_id < num_per_team else "red"
+        if team_id not in team_policy_map:
+            # Randomly select a policy for this team (ensure this list contains your available policies)
+            team_policy_map[team_id] = np.random.choice(
+                ["opponent_1", "opponent_2", "opponent_3"],
+                size=1,
+                p=[0.5, 0.25, 0.25],
             )[0]
+        policy = team_policy_map[team_id]
+        if agent_id == num_per_team*2-1:
+            del team_policy_map[team_id]
+        return policy
 
 
     ppo = tune.run(
@@ -137,7 +190,7 @@ def train_ppo(args):
         checkpoint_at_end=True,
         keep_checkpoints_num=100,
         storage_path="~/repositories/MultiAgentSoccer/ray_results/",
-        # restore="./ray_results/PPO_selfplay_twos_2/PPO_Soccer_a8b44_00000_0_2021-09-18_11-13-55/checkpoint_000600/checkpoint-600",
+        #restore="./ray_results/PPO_selfplay_rec/PPO_Soccer_ac781_00000_0_2024-11-05_04-02-24/checkpoint_000030",
     )
     
     # Gets best trial based on max accuracy across all training iterations.
@@ -179,6 +232,7 @@ def main():
     parser.add_argument('--lstm_dont_use_prev_action', action='store_false', help="Don't use use previous actions and rewards as inputs to LSTM")
     parser.add_argument('--lstm_num_layers', type=int, default=3, help='LSTM number of layers')
     parser.add_argument('--self_play_freeze_freq', type=int, default=10, help='Frequency with which to update self_play policy')
+    parser.add_argument('--ckpt', type=str, default=None, help="Restore from checkpoint")
     
     # Parse the arguments
     args = parser.parse_args()

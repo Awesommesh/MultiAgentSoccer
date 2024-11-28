@@ -18,7 +18,8 @@ parser.add_argument('-n', '--num_agents_per_team', type=int, choices=[2, 3, 4],
     default=2, help='number of players per team in the soccer environmnet (must be either 2, 3, or 4)')
 parser.add_argument('--timescale', type=int, default=1, help='timescale for environment')
 parser.add_argument('--num_episodes', type=int, default=100, help='number of episodes to test')
-parser.add_argument('--ckpt_path', type=str, required=True, help='Path to checkpoint')
+parser.add_argument('--ckpt_path1', type=str, required=True, help='Path to blue team checkpoint')
+parser.add_argument('--ckpt_path2', type=str, required=True, help='Path to red team checkpoint')
 
 # Parse the arguments
 args = parser.parse_args()
@@ -28,33 +29,64 @@ render = True
 
 # Initialize Ray
 ray.init()
-ckpt_p = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    args.ckpt_path,
-)
-param_pkl = os.path.join(ckpt_p, "algorithm_state.pkl")
-print(param_pkl)
-with open(param_pkl, "rb") as f:
-    config = pickle.load(f)
+blue_policy = "random"
+purple_policy = "random"
+if args.ckpt_path1 != "random":
+    ckpt_p = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        args.ckpt_path1,
+    )
+    param_pkl = os.path.join(ckpt_p, "algorithm_state.pkl")
+    print(param_pkl)
+    with open(param_pkl, "rb") as f:
+        config = pickle.load(f)
 
-print("Loaded algorithm state!")
- # no need for parallelism on evaluation
-config["num_workers"] = 0
-config["num_gpus"] = 0
-observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(336,), dtype=np.float32)
-action_space = gym.spaces.MultiDiscrete([3, 3, 3])
-config["observation_space"] = observation_space
-config["action_space"] = action_space
-# create a dummy env since it's required but we only care about the policy
-tune.registry.register_env("Soccer", create_rllib_env)
-print(config.keys(), config)
-cls = get_trainable_cls("PPO")
-print(cls)
-agent = cls(config=config)
-# load state from checkpoint
-agent.restore(ckpt_p)
-# get policy for evaluation
-policy = agent.get_policy("default")
+    print("Loaded algorithm state!")
+    # no need for parallelism on evaluation
+    config["num_workers"] = 0
+    config["num_gpus"] = 0
+    observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(336,), dtype=np.float32)
+    action_space = gym.spaces.MultiDiscrete([3, 3, 3])
+    config["observation_space"] = observation_space
+    config["action_space"] = action_space
+    # create a dummy env since it's required but we only care about the policy
+    tune.registry.register_env("Soccer", create_rllib_env)
+    print(config.keys(), config)
+    cls = get_trainable_cls("PPO")
+    print(cls)
+    agent = cls(config=config)
+    # load state from checkpoint
+    agent.restore(ckpt_p)
+    # get policy for evaluation
+    blue_policy = agent.get_policy("default")
+if args.ckpt_path2 != "random":
+    ckpt_p = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        args.ckpt_path2,
+    )
+    param_pkl = os.path.join(ckpt_p, "algorithm_state.pkl")
+    print(param_pkl)
+    with open(param_pkl, "rb") as f:
+        config = pickle.load(f)
+
+    print("Loaded algorithm state!")
+    # no need for parallelism on evaluation
+    config["num_workers"] = 0
+    config["num_gpus"] = 0
+    observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(336,), dtype=np.float32)
+    action_space = gym.spaces.MultiDiscrete([3, 3, 3])
+    config["observation_space"] = observation_space
+    config["action_space"] = action_space
+    # create a dummy env since it's required but we only care about the policy
+    tune.registry.register_env("Soccer", create_rllib_env)
+    print(config.keys(), config)
+    cls = get_trainable_cls("PPO")
+    print(cls)
+    agent = cls(config=config)
+    # load state from checkpoint
+    agent.restore(ckpt_p)
+    # get policy for evaluation
+    purple_policy = agent.get_policy("default")
 '''
 print("Testing retrieval")
 # Gets best trial based on max accuracy across all training iterations.
@@ -85,11 +117,19 @@ team0_goals, team1_goals = 0, 0
 draws = 0
 num_ep = 0
 while True and num_ep < args.num_episodes:
-    obs, reward, done, info = env.step(
-        {
-            i: env.action_space.sample() if i >= num_per_team else policy.compute_single_action(obs[i])[0] for i in range(2*num_per_team)
-        }
-    )
+    actions = {}
+    for i in range(num_per_team):
+        if blue_policy != "random":
+            actions[i] = blue_policy.compute_single_action(obs[i])[0]
+            
+        else:
+            actions[i] = env.action_space.sample()
+    for i in range(num_per_team):
+        if purple_policy != "random":
+            actions[num_per_team+i] = purple_policy.compute_single_action(obs[num_per_team+i])[0]
+        else:
+            actions[num_per_team+i] = env.action_space.sample()
+    obs, reward, done, info = env.step(actions)
     for i in range(num_per_team):
         team0_reward += reward[i]
         team1_reward += reward[num_per_team+i]
