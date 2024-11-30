@@ -78,7 +78,7 @@ def make(**env_config):
         env_channel = env_config.get("env_channel")
     else:
         env_channel = EnvConfigurationChannel()
-    
+
     unity_env = UnityEnvironment(
         env_config["env_path"],
         no_graphics=not env_config.get("render", False),

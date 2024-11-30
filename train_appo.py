@@ -42,15 +42,15 @@ def train_ppo(args):
         config["num_workers"] = 0
         config["num_gpus"] = 0
         observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(336,), dtype=np.float32)
-        action_space = gym.spaces.MultiDiscrete([3, 3, 3])
-        #action_space = gym.spaces.Discrete(27)
+        #action_space = gym.spaces.MultiDiscrete([3, 3, 3])
+        action_space = gym.spaces.Discrete(27)
         config["observation_space"] = observation_space
         config["action_space"] = action_space
         # create a dummy env since it's required but we only care about the policy
         tune.registry.register_env("Soccer", create_rllib_env) 
         #tune.registry.register_env("Soccer", create_rllib_env_flatten)
         print(config.keys(), config)
-        cls = get_trainable_cls("PPO")
+        cls = get_trainable_cls("APPO")
         print(cls)
         agent = cls(config=config)
         # load state from checkpoint
@@ -146,8 +146,8 @@ def train_ppo(args):
 
 
     ppo = tune.run(
-        "PPO",
-        name="PPO_selfplay_rec",
+        "APPO",
+        name="APPO_selfplay_rec",
         config={
             # system settings
             #"num_gpus": 1,

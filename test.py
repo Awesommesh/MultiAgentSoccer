@@ -1,8 +1,8 @@
 import soccer_fours, soccer_threes, soccer_twos
 
-num_per_team = 2
-time_scale = 10
-render = True
+num_per_team = 4
+time_scale = 1
+render = False
 
 if num_per_team == 4:
     env = soccer_fours.make(time_scale=time_scale, render=render)
