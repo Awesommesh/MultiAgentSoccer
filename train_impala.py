@@ -50,7 +50,7 @@ def train_ppo(args):
         tune.registry.register_env("Soccer", create_rllib_env) 
         #tune.registry.register_env("Soccer", create_rllib_env_flatten)
         print(config.keys(), config)
-        cls = get_trainable_cls("APPO")
+        cls = get_trainable_cls("IMPALA")
         print(cls)
         agent = cls(config=config)
         # load state from checkpoint
@@ -146,11 +146,11 @@ def train_ppo(args):
 
 
     ppo = tune.run(
-        "APPO",
-        name="APPO_selfplay_rec",
+        "IMPALA",
+        name="IMPALA_selfplay_rec",
         config={
             # system settings
-            #"num_gpus": 1,
+            "num_gpus": 0,
             "num_workers": num_workers,
             "num_envs_per_env_runner": num_envs_per_worker,
             "log_level": "INFO",
