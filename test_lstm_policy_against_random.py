@@ -28,7 +28,6 @@ num_per_team = args.num_agents_per_team
 time_scale = args.timescale
 render = True if not args.dont_render else False
 
-
 # Initialize Ray
 ray.init()
 blue_policy = "random"
@@ -61,6 +60,7 @@ if args.ckpt_path1 != "random":
     agent.restore(ckpt_p)
     # get policy for evaluation
     blue_policy = agent.get_policy("default")
+    state = blue_policy.get_initial_state()
 if args.ckpt_path2 != "random":
     ckpt_p = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
@@ -122,7 +122,7 @@ while True and num_ep < args.num_episodes:
     actions = {}
     for i in range(num_per_team):
         if blue_policy != "random":
-            actions[i] = blue_policy.compute_single_action(obs[i])[0]
+            actions[i], state, info = blue_policy.compute_single_action(obs[i], state=state)
             
         else:
             actions[i] = env.action_space.sample()

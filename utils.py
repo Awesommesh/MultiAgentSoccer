@@ -1,6 +1,6 @@
 import gymnasium as gym
 from ray.rllib import MultiAgentEnv
-import soccer_twos, soccer_threes, soccer_fours
+import soccer_twos, soccer_threes, soccer_fours, soccer_twos_striker_goalie
 from ray.rllib.env import MultiAgentEnv
 import numpy as np
 
@@ -51,12 +51,16 @@ def create_rllib_env(env_config: dict = {}):
             + env_config.vector_index
         )
     num_per_team = env_config.get("num_per_team")
+    striker_goalie = env_config.get("striker_goalie")
     if num_per_team == 4:
         unity_env = soccer_fours.make(**env_config)
     elif num_per_team == 3:
         unity_env = soccer_threes.make(**env_config)
     elif num_per_team == 2:
-        unity_env = soccer_twos.make(**env_config)
+        if striker_goalie:
+            unity_env = soccer_twos_striker_goalie.make(**env_config)
+        else:
+            unity_env = soccer_twos.make(**env_config)
     else:
         print(f"GOT UNEXPECTED NUMBER OF PLAYERS PER TEAM! {num_per_team}")
     multiagentenv = MultiAgentSoccerEnv(unity_env, num_per_team)

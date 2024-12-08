@@ -88,7 +88,9 @@ if args.ckpt_path2 != "random":
     # load state from checkpoint
     agent.restore(ckpt_p)
     # get policy for evaluation
-    purple_policy = agent.get_policy("default")
+    purple_policy_striker = agent.get_policy("default_striker")
+    purple_policy_goalie = agent.get_policy("default_goalie")
+    purple_policy = "specialized"
 '''
 print("Testing retrieval")
 # Gets best trial based on max accuracy across all training iterations.
@@ -128,7 +130,10 @@ while True and num_ep < args.num_episodes:
             actions[i] = env.action_space.sample()
     for i in range(num_per_team):
         if purple_policy != "random":
-            actions[num_per_team+i] = purple_policy.compute_single_action(obs[num_per_team+i])[0]
+            if i % 2 == 0:
+                actions[num_per_team+i] = purple_policy_striker.compute_single_action(obs[num_per_team+i])[0]
+            else:
+                actions[num_per_team+i] = purple_policy_goalie.compute_single_action(obs[num_per_team+i])[0]
         else:
             actions[num_per_team+i] = env.action_space.sample()
     obs, reward, done, info = env.step(actions)
