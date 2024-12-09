@@ -7,12 +7,14 @@ NOTE: It should be noted that currently, we only support training and evaluation
 
 [Footage of Specialized Agents against random agents](https://drive.google.com/file/d/1iO3S3lXvTKDk2iwQOxgBYJfYFirvFs5G/view?usp=sharing)
 
-## Environment setup
+# Environment setup
 Use ```conda create --name [ENV_NAME] python=3.10``` to create new conda env with python 3.10. Replace ENV_NAME with desired environment name.
 Use ```pip install -r requirements.txt``` to install dependencies
 
+# Training
+
 ## Training PPO
-First checkout to the main branch
+First checkout to the ```main``` branch
 
 Before training, edit the approrpiate training scripts (```train.py``` or ```train_specialized.py```) save file path to be based on your desired save directory. This can be done by searching for ```storage_path=``` and replacing the value after the equality sign to the desired global path for saved outputs.
 
@@ -25,7 +27,7 @@ Additionally, by passing the ```--use_lstm``` flag, the PPO agents will train us
 In order to train specialized agents in 2v2 setting, repeat the same process with ray start and stop but use ```python train_specialized.py -n 2```. Note that currently we have only tested and support specialized training for 2v2 setting.
 
 ## Training IMPALA
-First checkout to the APPO branch
+First checkout to the ```APPO``` branch
 
 Before training, edit the ```train_impala.py``` save file path to be based on your desired save directory. This can be done by searching for ```storage_path=``` and replacing the value after the equality sign to the desired global path for saved outputs.
 
@@ -34,6 +36,9 @@ Simply run ```ray start --head``` followed by ```python train_impala.py -n [NUM_
 After stopping the training process or after it is completed, run ```ray stop``` to end the ray processes.
 
 Additionally, by passing the ```--use_lstm``` flag, the IMPALA agents will train using a LSTM policy.
+
+# Evaluation
+Checkout to the ```main``` branch
 
 ## Evaluating Genearl FFN Agent against each other or against Random agents
 Run the following command to test how your trained agents perform against random agents or against other trained agents: ```python test_policy_against_random.py --timescale [TIMESCALE] -n [NUM_AGENTS] --ckpt_path1 [CKPT_1] --ckpt_path2 [CKPT_2]```
